@@ -6,12 +6,13 @@ import (
 	"io/ioutil"
 	"log"
 
+	pswd "github.com/sethvargo/go-password/password"
 	"html/template"
 	"net/http"
 	"net/url"
 	"strconv"
 
-	"github.com/sethvargo/go-password/password"
+	auth "github.com/korylprince/go-ad-auth"
 )
 
 // RegData данные для регистрации
@@ -24,6 +25,9 @@ type RegData struct {
 	Success           bool
 	Problem           string
 	Unsuccess         bool
+	ADuser            string
+	ADPassword        string
+	IP                string
 }
 
 type RegResult struct {
@@ -40,6 +44,14 @@ type RegResult struct {
 }
 
 func main() {
+
+	config := &auth.Config{
+		Server:   "10.55.0.98",
+		Port:     389,
+		BaseDN:   "DC=cloud,DC=local",
+		Security: auth.SecurityInsecureStartTLS,
+	}
+
 	resource := "/signup"
 
 	tmpl := template.Must(template.ParseFiles("index.html"))
@@ -56,57 +68,81 @@ func main() {
 			SendEmail:         r.FormValue("sendemail") == "true",
 			PasswordGenerated: false,
 			Success:           true,
+			ADuser:            r.FormValue("aduser"),
+			ADPassword:        r.FormValue("adpassword"),
+			IP:                r.RemoteAddr,
 		}
-		if details.Password == "" {
-			newpass, err := password.Generate(12, 2, 1, false, false)
-			if err != nil {
-				log.Fatal(err)
+
+		status, err := auth.Authenticate(config, details.ADuser, details.ADPassword)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if !status {
+			details.Problem = "Мы вас не узнали"
+			details.Unsuccess = true
+			details.Success = false
+			log.Printf("Auth fails for user %v from host %v", details.ADuser, details.IP)
+		} else {
+			if details.Password == "" {
+				newpass, err := pswd.Generate(12, 2, 1, false, false)
+				if err != nil {
+					log.Fatal(err)
+				}
+				details.Password = newpass
+				details.PasswordGenerated = true
 			}
-			details.Password = newpass
-			details.PasswordGenerated = true
-		}
-		data := url.Values{}
-		data.Set("appid", "signup")
-		data.Set("email", details.Email)
-		data.Set("password", details.Password)
-		data.Set("SendEmail", strconv.FormatBool(details.SendEmail))
-		apiURL := "https://reg.paasinfra.datafort.ru"
+			data := url.Values{}
+			data.Set("appid", "signup")
+			data.Set("email", details.Email)
+			data.Set("password", details.Password)
+			data.Set("SendEmail", strconv.FormatBool(details.SendEmail))
+			apiURL := "https://reg.paasinfra.datafort.ru"
 
-		switch details.Portal {
-		case "DataFort":
-			apiURL = "https://reg.paasinfra.datafort.ru"
-		case "Beeline":
-			apiURL = "https://reg.paas.beelinecloud.ru/"
-		case "SysSoft":
-			apiURL = "https://reg.paas.syssoft.ru"
-		}
-		u, _ := url.ParseRequestURI(apiURL)
-		u.Path = resource
-		urlStr := u.String()
-		client := &http.Client{}
-		buffer := new(bytes.Buffer)
-		buffer.WriteString(data.Encode())
-		r2, _ := http.NewRequest(http.MethodPost, urlStr, buffer) // URL-encoded payload
-		r2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		r2.Header.Set("Content-Length", strconv.Itoa(len(data.Encode())))
+			switch details.Portal {
+			case "DataFort":
+				apiURL = "https://reg.paasinfra.datafort.ru"
+			case "Beeline":
+				apiURL = "https://reg.paas.beelinecloud.ru/"
+			case "SysSoft":
+				apiURL = "https://reg.paas.syssoft.ru"
+			}
+			u, _ := url.ParseRequestURI(apiURL)
+			u.Path = resource
+			urlStr := u.String()
+			client := &http.Client{}
+			buffer := new(bytes.Buffer)
+			buffer.WriteString(data.Encode())
+			r2, _ := http.NewRequest(http.MethodPost, urlStr, buffer) // URL-encoded payload
+			r2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			r2.Header.Set("Content-Length", strconv.Itoa(len(data.Encode())))
 
-		resp, err := client.Do(r2)
-		if err == nil {
-			responseData, _ := ioutil.ReadAll(resp.Body)
-			var RegResult RegResult
-			json.Unmarshal(responseData, &RegResult)
-			if RegResult.Response.Exist {
-				details.Problem = "User already exist"
+			resp, err := client.Do(r2)
+			if err == nil {
+				responseData, _ := ioutil.ReadAll(resp.Body)
+				var RegResult RegResult
+				json.Unmarshal(responseData, &RegResult)
+				if RegResult.Response.Exist {
+					details.Problem = "Такой пользователь уже сушествует"
+					details.Unsuccess = true
+					details.Success = false
+					log.Printf("User %v from host %v try to create allready existing account (%v)", details.ADuser, details.IP, details.IP)
+				} else {
+					if details.PasswordGenerated {
+						log.Printf("User %v from host %v tcreate account (%v) with generated password", details.ADuser, details.IP, details.IP)
+					} else {
+						log.Printf("User %v from host %v tcreate account (%v)", details.ADuser, details.IP, details.IP)
+					}
+
+				}
+			} else {
+				log.Fatal(err)
+				details.Problem = err.Error()
 				details.Unsuccess = true
 				details.Success = false
 			}
-		} else {
-			log.Fatal(err)
-			details.Problem = err.Error()
-			details.Unsuccess = true
-			details.Success = false
 		}
-
 		tmpl.Execute(w, details)
 	})
 	http.ListenAndServe(":8099", nil)
