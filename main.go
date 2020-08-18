@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"net"
+	"regexp"
+	"strings"
 
 	pswd "github.com/sethvargo/go-password/password"
 	"html/template"
@@ -14,6 +17,8 @@ import (
 
 	auth "github.com/korylprince/go-ad-auth"
 )
+
+var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 
 // RegData данные для регистрации
 type RegData struct {
@@ -43,6 +48,22 @@ type RegResult struct {
 	}
 }
 
+// isEmailValid
+func isEmailValid(e string) bool {
+	if len(e) < 3 && len(e) > 254 {
+		return false
+	}
+	if !emailRegex.MatchString(e) {
+		return false
+	}
+	parts := strings.Split(e, "@")
+	mx, err := net.LookupMX(parts[1])
+	if err != nil || len(mx) == 0 {
+		return false
+	}
+	return true
+}
+
 func main() {
 
 	config := &auth.Config{
@@ -58,7 +79,11 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			tmpl.Execute(w, nil)
+			details := RegData{
+				Portal:    "DataFort",
+				SendEmail: false,
+			}
+			tmpl.Execute(w, details)
 			return
 		}
 		details := RegData{
@@ -78,8 +103,12 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-
-		if !status {
+		if !isEmailValid(details.Email) {
+			details.Problem = "Несуществующий email"
+			details.Unsuccess = true
+			details.Success = false
+			log.Printf("User %v from host %v try registr bad email", details.ADuser, details.IP)
+		} else if !status {
 			details.Problem = "Мы вас не узнали"
 			details.Unsuccess = true
 			details.Success = false

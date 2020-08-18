@@ -31,27 +31,27 @@
             <div class="row justify-content-md-center">
             <div class="col-md-6">
                 <form method="POST">
-                    <input type="text" name="email" class="form-control" placeholder="e-mail для регистрации" aria-label="e-mail для регистрации" aria-describedby="basic-addon2">
+                    <input type="text" name="email" class="form-control"  {{ if .Unsuccess }} value="{{ .Email }}" {{ end }} placeholder="e-mail для регистрации" aria-label="e-mail для регистрации" aria-describedby="basic-addon2">
                     <input type="password" name="password" class="form-control" placeholder="Пароль (оставить пустым для генерации)" aria-label="Пароль (оставить пустым для генерации)" aria-describedby="basic-addon2">
                     <div class="input-group">
                         <div class="input-group-prepend">
                             <span class="input-group-text" id="">CLOUD\</span>
                           </div>
-                        <input type="text" class="form-control"  name="aduser"  placeholder="Ваш пользователь" aria-label="Ваш пользователь" aria-describedby="basic-addon2">
+                        <input type="text" class="form-control"  name="aduser" value="{{ .ADuser }}" placeholder="Ваш пользователь" aria-label="Ваш пользователь" aria-describedby="basic-addon2">
                         <input type="password"  class="form-control" name=adpassword  placeholder="Ваш пароль" aria-label="Ваш пароль" aria-describedby="basic-addon2">
                     </div>
                     <div class="input-group mb-3">
                     <select name="portal" class="custom-select" id="inputGroupSelect02">
-                        <option value="DataFort" selected>Клиент DataFort</option>
-                        <option value="Beeline">Клиент Beeline</option>
-                        <option value="SysSoft">Клиент SysSoft</option>
+                        <option value="DataFort" {{ if eq .Portal "DataFort" }} selected {{ end }}>Клиент DataFort</option>
+                        <option value="Beeline" {{ if eq .Portal "Beeline"  }} selected {{ end }}>Клиент Beeline</option>
+                        <option value="SysSoft" {{ if eq .Portal "SysSoft"  }} selected {{ end }}>Клиент SysSoft</option>
                     </select>
                     <div class="input-group-append">
                         <input type="submit" value="Зарегистрировать" class="input-group-text" for="inputGroupSelect02">
                     </div> </div>
                     
                     <div class="custom-control custom-checkbox mr-sm-2">
-                        <input type="checkbox" name="sendmail"  class="custom-control-input" id="sendmail">
+                        <input type="checkbox" name="sendmail"  class="custom-control-input" id="sendmail" {{ if .SendEmail }} checked {{ end }}>
                         <label class="text-white bg-dark custom-control-label" for="sendmail"> Отправить данные на почту.</label>
                     </div>
                 </form>
