@@ -136,6 +136,8 @@ func main() {
 				apiURL = "https://reg.paas.beelinecloud.ru/"
 			case "SysSoft":
 				apiURL = "https://reg.paas.syssoft.ru"
+			case "O2":
+				apiURL = "https://reg.paas.o2-cloud.ru/"
 			}
 			u, _ := url.ParseRequestURI(apiURL)
 			u.Path = resource
